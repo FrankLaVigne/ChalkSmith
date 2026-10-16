@@ -1,6 +1,17 @@
 import type { Editor } from './editor';
 import type { ToolPointer } from './tools';
 
+/** Normalises wheel deltas to pixels (deltaMode 1 = lines, 2 = pages). */
+export function wheelDelta(e: { deltaX: number; deltaY: number; deltaMode: number }, pageHeight: number): [number, number] {
+  const m = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? pageHeight : 1;
+  return [e.deltaX * m, e.deltaY * m];
+}
+
+/** Zoom factor for a normalised vertical wheel delta, clamped to about 1.28x per step. */
+export function zoomFactor(dy: number): number {
+  return Math.exp(-Math.min(25, Math.max(-25, dy)) * 0.01);
+}
+
 /** Wires pointer, wheel and keyboard input on the canvas to the editor. Returns a detach function. */
 export function attachInput(canvas: HTMLCanvasElement, ed: Editor): () => void {
   let spaceDown = false;
@@ -36,7 +47,8 @@ export function attachInput(canvas: HTMLCanvasElement, ed: Editor): () => void {
       panning = { id: e.pointerId, x: e.clientX, y: e.clientY };
       return;
     }
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.pointerType !== 'touch' && e.button !== 0) return;
+    if (gesture !== null) return;
     if (!e.isPrimary || pinch) return;
     gesture = e.pointerId;
     ed.pointerDown(toPointer(e));
@@ -78,21 +90,23 @@ export function attachInput(canvas: HTMLCanvasElement, ed: Editor): () => void {
     touches.delete(e.pointerId);
     pinch = null;
     panning = null;
-    gesture = null;
-    ed.pointerCancel();
+    if (e.pointerId === gesture) { gesture = null; ed.pointerCancel(); }
   };
 
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const [sx, sy] = local(e);
-    if (e.ctrlKey || e.metaKey) ed.camera.zoomAt(sx, sy, Math.exp(-e.deltaY * 0.01));
-    else ed.camera.panBy(-e.deltaX, -e.deltaY);
+    const [dx, dy] = wheelDelta(e, canvas.clientHeight);
+    if (e.ctrlKey || e.metaKey) ed.camera.zoomAt(sx, sy, zoomFactor(dy));
+    else ed.camera.panBy(-dx, -dy);
     ed.viewChanged();
   };
 
   const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
   const onKeyDown = (e: KeyboardEvent) => { if (e.key === ' ' && !isTyping(e.target)) { spaceDown = true; e.preventDefault(); } };
   const onKeyUp = (e: KeyboardEvent) => { if (e.key === ' ') spaceDown = false; };
+
+  const onBlur = () => { spaceDown = false; };
 
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
@@ -101,6 +115,7 @@ export function attachInput(canvas: HTMLCanvasElement, ed: Editor): () => void {
   canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
   return () => {
     canvas.removeEventListener('pointerdown', onDown);
     canvas.removeEventListener('pointermove', onMove);
@@ -109,5 +124,6 @@ export function attachInput(canvas: HTMLCanvasElement, ed: Editor): () => void {
     canvas.removeEventListener('wheel', onWheel);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('blur', onBlur);
   };
 }
