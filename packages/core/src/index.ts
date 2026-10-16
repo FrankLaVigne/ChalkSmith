@@ -11,3 +11,4 @@ export * from './geometry/width';
 export * from './geometry/outline';
 export * from './geometry/translate';
 export * from './textures';
+export * from './geometry/hittest';
