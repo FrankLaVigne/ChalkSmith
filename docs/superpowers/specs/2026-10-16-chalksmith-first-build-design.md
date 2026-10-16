@@ -5,6 +5,19 @@
 - Related: `docs/spec/whiteboard-html-export.md`,
   `docs/research/import-feasibility.md`, `docs/plan/implementation-plan.md`
 
+> **Amendments (2026-10-16, after the final review of the first build).**
+> 1. §5 widths: per-point widths measure the distance to the outline with
+>    arcs sampled at 8 steps, not approximated by their endpoints (more
+>    accurate on round joins and caps).
+> 2. §6.3 file access: in v0 the `read_file` and `write_atomic` commands
+>    accept any path. Only bundled code runs in the webview, under a strict
+>    CSP, with no network access and no remote content, so the webview is the
+>    only caller. A stricter design, where Rust only touches paths returned by
+>    its own dialogs, is deferred.
+> 3. §6.3 CSP: the policy also contains `style-src 'self' 'unsafe-inline'`
+>    (Svelte injects component styles during development) and
+>    `connect-src ipc: http://ipc.localhost` (Tauri IPC).
+
 ## 1. Intent
 
 **Goal.** Build a cross-platform desktop app (Windows, macOS, Linux) that
@@ -208,7 +221,7 @@ interface RescueReport {
        stroke body is as thick as its long side.) If there is no rectangle,
        it is 2 × the maximum centerline-to-outline distance;
      - `widths` = 2 × the distance from each centerline point to the outline
-       polygon (arcs approximated by their endpoints), clamped to
+       polygon (arcs sampled at 8 steps; amended, see top), clamped to
        `[0.1·width, width]`. Omitted for highlighters;
      - the polyline `stroke-width` is **never** read.
    - `AzureImage` → `ImageObj`. Decode the `data:` URI and sniff the type
@@ -284,7 +297,8 @@ apart from generated UUIDs. Tests inject a deterministic id generator.
 ### 6.3 Platform and files (`src-tauri`, `platform.ts`)
 
 - Tauri dialog plugin for Open (`.chalk`, `.zip`), Save As (`.chalk`), and
-  Export (`.svg`). File access is limited to paths the user picked.
+  Export (`.svg`). The UI only passes paths the user picked; the commands
+  themselves accept any path in v0 (amended, see top).
 - Reads: bytes via a Tauri command. Writes: a Rust command `write_atomic(path,
   bytes)` that writes `<path>.tmp-<rand>`, fsyncs, then renames over the
   target.
@@ -292,7 +306,8 @@ apart from generated UUIDs. Tests inject a deterministic id generator.
   is `<zip basename>.chalk` in the ZIP's folder. The ZIP is never written to.
 - Tauri capabilities allow only the dialog plugin and the app's own
   commands, with no network permissions. The CSP is `default-src 'self';
-  img-src 'self' blob: data:`.
+  img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; connect-src
+  ipc: http://ipc.localhost` (the last two amended, see top).
 
 ## 7. Error handling
 
