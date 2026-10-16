@@ -10,7 +10,7 @@
   "scripts": {
     "test": "vitest run",
     "validator": "tsx packages/core/scripts/build-validator.ts",
-    "typecheck": "tsc -p packages/core/tsconfig.json",
+    "typecheck": "tsc -p packages/core/tsconfig.json && npm run check -w @chalksmith/desktop",
     "fixtures": "tsx packages/core/fixtures/generate.ts"
   },
   "devDependencies": {
