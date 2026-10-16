@@ -1,10 +1,8 @@
-import Ajv2020 from 'ajv/dist/2020';
 import { ChalkError } from '../errors';
 import type { Board, Stroke } from '../model/types';
-import { chalkBoardSchema } from './schema';
+import check from './board-validator.generated.js';
 
-const ajv = new Ajv2020({ allErrors: false });
-const check = ajv.compile(chalkBoardSchema);
+const KINDS = new Set(['stroke', 'group', 'image', 'unsupported']);
 
 function checkStroke(s: Stroke): void {
   if (s.points.length % 2 !== 0) throw new ChalkError('SchemaInvalid', `Invalid board: stroke ${s.id} has an odd number of coordinates.`);
@@ -13,7 +11,20 @@ function checkStroke(s: Stroke): void {
   }
 }
 
+function checkKinds(board: unknown): void {
+  const objects = (board as { objects?: unknown } | null)?.objects;
+  if (!Array.isArray(objects)) return;
+  for (const o of objects) {
+    const kind = (o as { kind?: unknown } | null)?.kind;
+    if (!KINDS.has(kind as string)) {
+      const id = (o as { id?: unknown } | null)?.id;
+      throw new ChalkError('SchemaInvalid', `Invalid board: unknown object kind ${JSON.stringify(kind)}${typeof id === 'string' ? ` (object ${id})` : ''}.`);
+    }
+  }
+}
+
 export function validateBoard(board: unknown): asserts board is Board {
+  checkKinds(board);
   if (!check(board)) {
     const e = check.errors?.[0];
     throw new ChalkError('SchemaInvalid', `Invalid board: ${e?.instancePath || '/'} ${e?.message ?? 'does not match the schema'}.`);

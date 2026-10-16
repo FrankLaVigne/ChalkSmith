@@ -1,3 +1,4 @@
+import { generateValidatorSource } from '../scripts/validator-source';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strToU8, zipSync } from 'fflate';
@@ -87,5 +88,49 @@ describe('published schema', () => {
     const block = md.match(/```json\n([\s\S]*?)\n```/);
     expect(block).not.toBeNull();
     expect(JSON.parse(block![1])).toEqual(JSON.parse(JSON.stringify(chalkBoardSchema)));
+  });
+});
+
+describe('.chalk fix round 1', () => {
+  const m = '{"format":"chalk","version":0,"createdBy":"x","createdAt":"a","modifiedAt":"a"}';
+  it('validates the rounded board at write time', () => {
+    const c = contents();
+    (c.board.objects[0] as { width: number }).width = 0.00004;
+    expect(code(() => writeChalk(c, { appVersion: 'x' }))).toBe('SchemaInvalid');
+    const d = contents();
+    d.board.view = { x: 0, y: 0, zoom: 0.00001 };
+    expect(code(() => writeChalk(d, { appVersion: 'x' }))).toBe('SchemaInvalid');
+  });
+  it('rejects unknown object kinds with a clear message', () => {
+    const b = { ...structuredClone(board), objects: [{ kind: 'foo', id: 'x' }] };
+    let err: ChalkError | undefined;
+    try { readChalk(zip({ 'manifest.json': m, 'board.json': JSON.stringify(b) })); } catch (e) { err = e as ChalkError; }
+    expect(err?.code).toBe('SchemaInvalid');
+    expect(err?.message).toContain('unknown object kind');
+  });
+  it('ignores unsafe entry names in a crafted zip', () => {
+    const f = readChalk(zip({
+      'manifest.json': m, 'board.json': JSON.stringify({ id: 'b', background: board.background, objects: [] }),
+      'assets/../evil.png': 'x', 'assets\\x.png': 'x', 'extensions/../y.json': 'x', [asset]: 'ok',
+    }));
+    expect([...f.assets.keys()]).toEqual([asset]);
+    expect(f.extensions.size).toBe(0);
+  });
+  it('rejects invalid JSON in board.json and manifest.json', () => {
+    expect(code(() => readChalk(zip({ 'manifest.json': m, 'board.json': '{nope' })))).toBe('BadChalk');
+    expect(code(() => readChalk(zip({ 'manifest.json': '{nope', 'board.json': '{}' })))).toBe('BadChalk');
+  });
+});
+
+describe('standalone validator', () => {
+  const dir = new URL('../src/format/', import.meta.url);
+  it('committed generated validator matches the schema', () => {
+    const committed = readFileSync(fileURLToPath(new URL('board-validator.generated.js', dir)), 'utf8');
+    expect(committed).toBe(generateValidatorSource());
+  });
+  it('validate.ts does not compile schemas at runtime', () => {
+    const src = readFileSync(fileURLToPath(new URL('validate.ts', dir)), 'utf8');
+    expect(src).not.toContain('compile(');
+    expect(src).not.toContain('new Ajv');
   });
 });

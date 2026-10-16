@@ -26,13 +26,14 @@ const json = (v: unknown) =>
   strToU8(JSON.stringify(v, (_k, x) => (typeof x === 'number' ? round4(x) : x), 2));
 
 export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: Date }): Uint8Array {
-  validateBoard(c.board);
+  const boardJson = json(c.board);
+  validateBoard(JSON.parse(strFromU8(boardJson)));
   const now = (opts.now ?? new Date()).toISOString();
   const manifest: Manifest = {
     format: 'chalk', version: CHALK_VERSION, createdBy: `ChalkSmith ${opts.appVersion}`,
     createdAt: c.createdAt ?? now, modifiedAt: now,
   };
-  const files: Zippable = { 'manifest.json': json(manifest), 'board.json': json(c.board) };
+  const files: Zippable = { 'manifest.json': json(manifest), 'board.json': boardJson };
   for (const [p, b] of c.assets) {
     if (!safeEntry(p, 'assets/')) throw new ChalkError('BadChalk', `Refusing to write unsafe asset path "${p}".`);
     files[p] = [b, { level: 0 }];
