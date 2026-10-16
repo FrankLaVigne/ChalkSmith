@@ -133,7 +133,7 @@ page. Nothing about boards works locally.
 | PDF | Export | **[C]** Native `PrintToPdf` bridge exists in the host |
 | ZIP "full export": `<name>.html` + `<name>-comments.json` | Export | **[C]** Observed in a real export. **[H]** Corresponds to the "Full Export" option described in secondary coverage of the legacy-board retirement. Microsoft's support pages examined do not document it. |
 | PDF (inserted as page images), images | Import | **[C]** Host types for PDF; images via the web app |
-| Native `.whiteboard` files in OneDrive | Storage | **[H]** Not examinable offline; out of scope for ChalkSmith |
+| Native `.whiteboard` files in OneDrive (work/school only) | Storage | **[C]** Binary, ~10 KB, synced only as a cloud-only placeholder that OneDrive won't hydrate. Not readable so far; see `whiteboard-file-spike.md` |
 
 ## 6. Service status (verified 2026-10-16)
 
