@@ -1,0 +1,91 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { strToU8, zipSync } from 'fflate';
+import { describe, expect, it } from 'vitest';
+import { readChalk, writeChalk, chalkBoardSchema, ChalkError, type Board } from '../src/index';
+
+const asset = 'assets/' + 'a'.repeat(64) + '.png';
+const board: Board = {
+  id: 'b1',
+  background: { color: { r: 255, g: 255, b: 255, a: 1 } },
+  view: { x: -10.5, y: 3, zoom: 0.25 },
+  objects: [
+    { kind: 'stroke', id: 's1', tool: 'pen', color: { r: 31, g: 31, b: 31, a: 1 }, width: 3.5,
+      points: [0, 0, 1.2345, 2], widths: [1, 3.5], brush: { kind: 'solid' }, sourceOutline: 'M0,0L1,1',
+      source: { system: 'ms-whiteboard', id: 'abc' } },
+    { kind: 'group', id: 'g1', transform: [1, 0, 0, 1, 10, 20], children: [
+      { kind: 'stroke', id: 's2', tool: 'highlighter', color: { r: 253, g: 132, b: 45, a: 0.4 }, width: 9.3,
+        points: [0, 0], brush: { kind: 'texture', name: 'galaxy', origin: [0, 0], scale: 0.5 } },
+    ] },
+    { kind: 'image', id: 'i1', asset, x: 1, y: 2, w: 30, h: 20, intrinsic: { w: 60, h: 40 } },
+    { kind: 'unsupported', id: 'u1', sourceType: 'StickyNote', bbox: null },
+  ],
+};
+const contents = () => ({
+  board: structuredClone(board),
+  assets: new Map([[asset, new Uint8Array([1, 2, 3])]]),
+  extensions: new Map([['extensions/ms-whiteboard/comments.json', strToU8('{"commentThreads":[]}')]]),
+});
+
+describe('.chalk round trip', () => {
+  it('writes and reads back identical content', () => {
+    const now = new Date('2026-10-16T12:00:00Z');
+    const f = readChalk(writeChalk(contents(), { appVersion: '0.1.0', now }));
+    expect(f.board).toEqual(board);
+    expect([...f.assets.keys()]).toEqual([asset]);
+    expect(f.assets.get(asset)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(f.extensions.size).toBe(1);
+    expect(f.manifest).toEqual({ format: 'chalk', version: 0, createdBy: 'ChalkSmith 0.1.0',
+      createdAt: '2026-10-16T12:00:00.000Z', modifiedAt: '2026-10-16T12:00:00.000Z' });
+    expect(f.warnings).toEqual([]);
+  });
+  it('keeps createdAt when given', () => {
+    const f = readChalk(writeChalk({ ...contents(), createdAt: '2020-01-01T00:00:00.000Z' }, { appVersion: 'x' }));
+    expect(f.manifest.createdAt).toBe('2020-01-01T00:00:00.000Z');
+  });
+  it('rounds numbers to 4 decimals on write', () => {
+    const c = contents();
+    (c.board.objects[0] as { points: number[] }).points = [0.123456, 0, 1, 1];
+    const f = readChalk(writeChalk(c, { appVersion: 'x' }));
+    expect((f.board.objects[0] as { points: number[] }).points[0]).toBe(0.1235);
+  });
+});
+
+const zip = (files: Record<string, string>) =>
+  zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)])));
+const code = (fn: () => unknown) => { try { fn(); } catch (e) { return (e as ChalkError).code; } return 'none'; };
+
+describe('.chalk rejection', () => {
+  it('rejects non-zip, missing parts, wrong format and future versions', () => {
+    expect(code(() => readChalk(strToU8('hello')))).toBe('BadChalk');
+    expect(code(() => readChalk(zip({ 'board.json': '{}' })))).toBe('BadChalk');
+    expect(code(() => readChalk(zip({ 'manifest.json': '{"format":"other","version":0}', 'board.json': '{}' })))).toBe('BadChalk');
+    expect(code(() => readChalk(zip({ 'manifest.json': '{"format":"chalk","version":1}', 'board.json': '{}' })))).toBe('UnsupportedVersion');
+  });
+  it('rejects schema violations, odd points and width mismatches', () => {
+    const m = '{"format":"chalk","version":0,"createdBy":"x","createdAt":"a","modifiedAt":"a"}';
+    const bad = (b: unknown) => code(() => readChalk(zip({ 'manifest.json': m, 'board.json': JSON.stringify(b) })));
+    const ok = structuredClone(board);
+    expect(bad({ ...ok, background: { color: { r: 999, g: 0, b: 0, a: 1 } } })).toBe('SchemaInvalid');
+    const odd = structuredClone(board); (odd.objects[0] as { points: number[] }).points = [1, 2, 3];
+    expect(bad(odd)).toBe('SchemaInvalid');
+    const mism = structuredClone(board); (mism.objects[0] as { widths: number[] }).widths = [1];
+    expect(bad(mism)).toBe('SchemaInvalid');
+  });
+  it('warns about missing assets and ignores unsafe entry names', () => {
+    const c = contents(); c.assets.clear();
+    const bytes = writeChalk(c, { appVersion: 'x' });
+    const f = readChalk(bytes);
+    expect(f.warnings).toEqual([`Image i1: asset ${asset} is missing.`]);
+    expect(() => writeChalk({ ...contents(), assets: new Map([['../evil.png', new Uint8Array()]]) }, { appVersion: 'x' })).toThrow();
+  });
+});
+
+describe('published schema', () => {
+  it('docs/spec/chalk-format.md contains exactly the code schema', () => {
+    const md = readFileSync(fileURLToPath(new URL('../../../docs/spec/chalk-format.md', import.meta.url)), 'utf8');
+    const block = md.match(/```json\n([\s\S]*?)\n```/);
+    expect(block).not.toBeNull();
+    expect(JSON.parse(block![1])).toEqual(JSON.parse(JSON.stringify(chalkBoardSchema)));
+  });
+});

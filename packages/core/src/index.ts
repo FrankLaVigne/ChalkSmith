@@ -12,3 +12,6 @@ export * from './geometry/outline';
 export * from './geometry/translate';
 export * from './textures';
 export * from './geometry/hittest';
+export * from './format/schema';
+export * from './format/validate';
+export * from './format/chalk';
