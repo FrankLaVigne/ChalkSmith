@@ -19,6 +19,8 @@ export class EditorDoc {
   extensions: Map<string, Uint8Array>;
   createdAt?: string;
   source: DocSource;
+  /** The Whiteboard export this board was rescued from; never a save target. */
+  rescuedFrom?: string;
   dirty = false;
   readonly index = new GridIndex(256);
 

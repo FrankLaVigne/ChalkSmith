@@ -8,7 +8,9 @@ export const APP_VERSION = '0.1.0';
 const stripExt = (p: string) => p.replace(/\.[^./\\]*$/, '');
 export const defaultChalkPath = (p: string) => `${stripExt(p)}.chalk`;
 export const defaultSvgPath = (p: string | null) => (p ? `${stripExt(p)}.svg` : 'board.svg');
-export const samePath = (a: string, b: string) => a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+const normPath = (p: string) =>
+  p.replace(/\\/g, '/').toLowerCase().split('/').map((seg) => (seg === '.' || seg === '..' ? seg : seg.replace(/[. ]+$/, ''))).join('/');
+export const samePath = (a: string, b: string) => normPath(a) === normPath(b);
 export const displayName = (s: DocSource) => (s.kind === 'new' ? 'Untitled' : s.path.split(/[\\/]/).pop() ?? s.path);
 
 export function errorText(e: unknown): string {
@@ -37,6 +39,7 @@ export async function openBoard(ed: Editor, pf: Platform): Promise<OpenResult | 
     const r = rescueWhiteboardZip(bytes);
     const doc = new EditorDoc({ board: r.board, assets: r.assets, extensions: r.extensions, source: { kind: 'whiteboard-zip', path } });
     doc.dirty = true;
+    doc.rescuedFrom = path;
     ed.load(doc);
     return { report: r.report, warnings: [] };
   } catch (e) {
@@ -48,7 +51,8 @@ export async function openBoard(ed: Editor, pf: Platform): Promise<OpenResult | 
 /** Refuses any path that is the original Whiteboard export. */
 async function guardOriginal(ed: Editor, pf: Platform, path: string): Promise<boolean> {
   const s = ed.doc.source;
-  if (s.kind === 'whiteboard-zip' && samePath(path, s.path)) {
+  const orig = [ed.doc.rescuedFrom, s.kind === 'whiteboard-zip' ? s.path : undefined];
+  if (orig.some((o) => o && samePath(path, o))) {
     await pf.error('Choose another name', 'ChalkSmith never overwrites the original export. Please choose a different file name.');
     return false;
   }
@@ -89,8 +93,9 @@ export async function saveBoardAs(ed: Editor, pf: Platform): Promise<boolean> {
 
 export async function exportSvg(ed: Editor, pf: Platform): Promise<boolean> {
   const s = ed.doc.source;
-  const path = await pf.pickSave(defaultSvgPath(s.kind === 'new' ? null : s.path), 'svg');
+  let path = await pf.pickSave(defaultSvgPath(s.kind === 'new' ? null : s.path), 'svg');
   if (!path || !(await guardOriginal(ed, pf, path))) return false;
+  if (!path.toLowerCase().endsWith('.svg')) path += '.svg';
   try {
     await pf.writeFile(path, new TextEncoder().encode(boardToSvg(ed.doc.board, ed.doc.assets)));
     return true;

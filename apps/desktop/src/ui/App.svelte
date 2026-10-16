@@ -7,7 +7,7 @@
   import { attachInput } from '../engine/input';
   import { Renderer } from '../engine/renderer';
   import { tauriPlatform as pf } from '../platform';
-  import { confirmDiscard, displayName, exportSvg, openBoard, saveBoard, saveBoardAs } from './actions';
+  import { confirmDiscard, displayName, errorText, exportSvg, openBoard, saveBoard, saveBoardAs } from './actions';
   import { installMenu } from './menu';
   import RescueReport from './RescueReport.svelte';
   import Toolbar from './Toolbar.svelte';
@@ -27,15 +27,20 @@
     });
   });
 
+  const guard = (fn: () => unknown | Promise<unknown>) => async () => {
+    try { await fn(); } catch (e) { await pf.error('Unexpected error', errorText(e)).catch(() => {}); }
+  };
+
   async function doOpen() {
     const r = await openBoard(editor, pf);
     if (!r) return;
+    report = null;
     if (r.report) report = r.report;
     if (r.warnings.length) await pf.error('Opened with warnings', r.warnings.join('\n'));
   }
 
   async function doClose() {
-    if (await confirmDiscard(editor, pf)) editor.load(EditorDoc.empty());
+    if (await confirmDiscard(editor, pf)) { report = null; editor.load(EditorDoc.empty()); }
   }
 
   async function doSaveFromReport() {
@@ -56,10 +61,18 @@
     }
   }
 
+  let lastTitle = '';
   function updateTitle() {
     const d = editor.doc;
-    void getCurrentWindow().setTitle(`${d.dirty ? '• ' : ''}${displayName(d.source)} — ChalkSmith`);
+    const title = `${d.dirty ? '• ' : ''}${displayName(d.source)} — ChalkSmith`;
+    if (title === lastTitle) return;
+    lastTitle = title;
+    void getCurrentWindow().setTitle(title).catch(() => { lastTitle = ''; });
   }
+  const onRejection = (e: PromiseRejectionEvent) => {
+    e.preventDefault();
+    void pf.error('Unexpected error', errorText(e.reason)).catch(() => {});
+  };
 
   onMount(() => {
     renderer = new Renderer(canvas, () => editor.render());
@@ -82,14 +95,15 @@
     const detach = attachInput(canvas, editor);
     const off = editor.onChange(() => { tick++; updateTitle(); });
     updateTitle();
-    void installMenu({
-      open: () => void doOpen(),
-      save: () => void saveBoard(editor, pf),
-      saveAs: () => void saveBoardAs(editor, pf),
-      exportSvg: () => void exportSvg(editor, pf),
-      close: () => void doClose(),
-      quit: () => void getCurrentWindow().close(),
-    });
+    window.addEventListener('unhandledrejection', onRejection);
+    void guard(() => installMenu({
+      open: guard(doOpen),
+      save: guard(() => saveBoard(editor, pf)),
+      saveAs: guard(() => saveBoardAs(editor, pf)),
+      exportSvg: guard(() => exportSvg(editor, pf)),
+      close: guard(doClose),
+      quit: guard(async () => { if (await confirmDiscard(editor, pf)) await getCurrentWindow().destroy(); }),
+    }))();
     const unlisten = getCurrentWindow().onCloseRequested(async (e) => {
       if (!(await confirmDiscard(editor, pf))) e.preventDefault();
     });
@@ -101,6 +115,7 @@
       off();
       void unlisten.then((u) => u());
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('unhandledrejection', onRejection);
     };
   });
 </script>
@@ -111,7 +126,7 @@
     <canvas bind:this={canvas}></canvas>
   </div>
   {#if report}
-    <RescueReport {report} onSave={doSaveFromReport} onClose={() => (report = null)} />
+    <RescueReport {report} onSave={guard(doSaveFromReport)} onClose={() => (report = null)} />
   {/if}
 </div>
 

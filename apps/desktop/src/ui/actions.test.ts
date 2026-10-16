@@ -100,6 +100,40 @@ describe('rescue and save', () => {
     expect(pf.errors[0]).toMatch(/not a valid Whiteboard export/);
     expect(ed.doc.source).toEqual({ kind: 'new' });
   });
+  it('refuses SVG export onto the original ZIP even after saving as .chalk', async () => {
+    const { pf, ed } = setup();
+    await openBoard(ed, pf);
+    pf.savePaths = ['C:\\Users\\me\\Exports\\My.Board.chalk'];
+    await saveBoard(ed, pf);
+    pf.writes = [];
+    pf.savePaths = [ZIP];
+    expect(await exportSvg(ed, pf)).toBe(false);
+    expect(pf.writes).toEqual([]);
+  });
+  it('refuses Windows aliases of the ZIP path (trailing dot)', async () => {
+    const { pf, ed } = setup();
+    await openBoard(ed, pf);
+    pf.savePaths = ['C:\\Users\\me\\Exports\\My.Board.zip.'];
+    expect(await saveBoardAs(ed, pf)).toBe(false);
+    expect(pf.writes).toEqual([]);
+  });
+  it('appends .svg when the export path has no extension', async () => {
+    const { pf, ed } = setup();
+    await openBoard(ed, pf);
+    pf.savePaths = ['C:\\out\\pic'];
+    expect(await exportSvg(ed, pf)).toBe(true);
+    expect(pf.writes).toEqual(['C:\\out\\pic.svg']);
+  });
+  it('a failed save reports an error and keeps the board dirty', async () => {
+    const { pf, ed } = setup();
+    await openBoard(ed, pf);
+    pf.writeFile = async () => { throw new Error('disk full'); };
+    pf.savePaths = ['C:\\x.chalk'];
+    expect(await saveBoardAs(ed, pf)).toBe(false);
+    expect(pf.errors[0]).toMatch(/disk full/);
+    expect(ed.doc.dirty).toBe(true);
+    expect(ed.doc.source).toEqual({ kind: 'whiteboard-zip', path: ZIP });
+  });
   it('exports SVG next to the source', async () => {
     const { pf, ed } = setup();
     await openBoard(ed, pf);
