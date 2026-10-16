@@ -85,12 +85,13 @@ export class Editor implements ToolHost {
 
   deleteSelection(): void {
     if (this.selection.size === 0) return;
+    this.tool.cancel(this);
     this.history.execute(new RemoveItems([...this.selection].map((id) => ({ groupId: null, id }))));
     this.setSelection([]);
   }
 
-  undo(): void { if (this.history.undo()) this.afterHistory(); }
-  redo(): void { if (this.history.redo()) this.afterHistory(); }
+  undo(): void { this.tool.cancel(this); if (this.history.undo()) this.afterHistory(); }
+  redo(): void { this.tool.cancel(this); if (this.history.redo()) this.afterHistory(); }
 
   private afterHistory(): void {
     const ids = new Set(this.doc.board.objects.map((o) => o.id));

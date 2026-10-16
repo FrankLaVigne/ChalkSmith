@@ -114,3 +114,29 @@ describe('eraser, select, hand', () => {
     expect(ed.doc.board.view).toEqual({ x: 1.2346, y: 0, zoom: 2 });
   });
 });
+
+describe('history and delete cancel in-progress gestures', () => {
+  it('undo during a pen stroke discards the live stroke', () => {
+    const { ed } = newEditor();
+    draw(ed, [[0, 0], [50, 0]]);
+    ed.pointerDown(at(0, 10));
+    ed.pointerMove(at(20, 10));
+    expect(ed.live.stroke).not.toBeNull();
+    ed.undo();
+    expect(ed.live.stroke).toBeNull();
+    ed.pointerUp(at(40, 10));
+    expect(ed.doc.board.objects).toHaveLength(0);
+  });
+  it('deleteSelection during a drag does not commit a stale move', () => {
+    const { ed } = newEditor();
+    draw(ed, [[0, 0], [100, 0]]);
+    ed.setTool('select');
+    ed.pointerDown(at(50, 1));
+    ed.pointerMove(at(60, 11));
+    ed.deleteSelection();
+    ed.pointerUp(at(60, 11));
+    expect(ed.doc.board.objects).toHaveLength(0);
+    ed.undo();
+    expect((ed.doc.board.objects[0] as Stroke).points).toEqual([0, 0, 100, 0]);
+  });
+});
