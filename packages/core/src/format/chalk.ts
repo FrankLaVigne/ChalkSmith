@@ -1,6 +1,7 @@
-import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
+import { strFromU8, strToU8, zipSync, type Zippable } from 'fflate';
 import { ChalkError } from '../errors';
 import type { Board, Manifest } from '../model/types';
+import { DEFAULT_LIMITS, unzipLimited, type ExportLimits } from '../util/unzip';
 import { chalkJson } from './json';
 import { validateBoard } from './validate';
 
@@ -33,9 +34,12 @@ export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: D
     createdAt: c.createdAt ?? now, modifiedAt: now,
   };
   const files: Zippable = { 'manifest.json': json(manifest), 'board.json': boardJson };
+  // Only assets the board references are written; others (e.g. images since erased, kept in
+  // memory for undo) are left out.
+  const used = new Set(c.board.objects.flatMap((o) => (o.kind === 'image' ? [o.asset] : [])));
   for (const [p, b] of c.assets) {
     if (!safeEntry(p, 'assets/')) throw new ChalkError('BadChalk', `Refusing to write unsafe asset path "${p}".`);
-    files[p] = [b, { level: 0 }];
+    if (used.has(p)) files[p] = [b, { level: 0 }];
   }
   for (const [p, b] of c.extensions) {
     if (!safeEntry(p, 'extensions/')) throw new ChalkError('BadChalk', `Refusing to write unsafe extension path "${p}".`);
@@ -52,13 +56,9 @@ function parseJson(bytes: Uint8Array, name: string): unknown {
   }
 }
 
-export function readChalk(bytes: Uint8Array): ChalkFile {
-  let entries: Record<string, Uint8Array>;
-  try {
-    entries = unzipSync(bytes);
-  } catch {
-    throw new ChalkError('BadChalk', 'This file is not a valid .chalk file (it is not a ZIP archive).');
-  }
+export function readChalk(bytes: Uint8Array, opts: { limits?: ExportLimits } = {}): ChalkFile {
+  const entries = unzipLimited(bytes, opts.limits ?? DEFAULT_LIMITS, 'This .chalk file',
+    () => new ChalkError('BadChalk', 'This file is not a valid .chalk file (it is not a ZIP archive).'));
   const m = entries['manifest.json'];
   const b = entries['board.json'];
   if (!m || !b) throw new ChalkError('BadChalk', 'This .chalk file is missing manifest.json or board.json.');

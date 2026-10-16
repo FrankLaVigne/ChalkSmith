@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { readChalk, writeChalk, chalkBoardSchema, ChalkError, type Board } from '../src/index';
+import { readChalk, writeChalk, chalkBoardSchema, ChalkError, rescueWhiteboardZip, seqIds, type Board } from '../src/index';
+import { FIXTURES } from '../fixtures/catalog';
 
 const asset = 'assets/' + 'a'.repeat(64) + '.png';
 const board: Board = {
@@ -79,6 +80,34 @@ describe('.chalk rejection', () => {
     const f = readChalk(bytes);
     expect(f.warnings).toEqual([`Image i1: asset ${asset} is missing.`]);
     expect(() => writeChalk({ ...contents(), assets: new Map([['../evil.png', new Uint8Array()]]) }, { appVersion: 'x' })).toThrow();
+  });
+  it('writes only assets the board references', () => {
+    const c = contents();
+    const orphan = 'assets/' + 'b'.repeat(64) + '.png';
+    c.assets.set(orphan, new Uint8Array([9, 9]));
+    const f = readChalk(writeChalk(c, { appVersion: 'x' }));
+    expect([...f.assets.keys()]).toEqual([asset]);
+    const noImages = { ...contents(), board: { ...structuredClone(board), objects: board.objects.filter((o) => o.kind !== 'image') } };
+    expect(readChalk(writeChalk(noImages, { appVersion: 'x' })).assets.size).toBe(0);
+  });
+  it('applies unzip limits when reading', () => {
+    const bytes = writeChalk(contents(), { appVersion: 'x' });
+    const code = (limits: { maxEntries: number; maxTotalBytes: number; maxEntryBytes: number }) => {
+      try { readChalk(bytes, { limits }); return 'ok'; } catch (e) { return (e as ChalkError).code; }
+    };
+    expect(code({ maxEntries: 64, maxTotalBytes: 2 ** 20, maxEntryBytes: 2 ** 20 })).toBe('ok');
+    expect(code({ maxEntries: 2, maxTotalBytes: 2 ** 20, maxEntryBytes: 2 ** 20 })).toBe('TooLarge');
+    expect(code({ maxEntries: 64, maxTotalBytes: 100, maxEntryBytes: 2 ** 20 })).toBe('TooLarge');
+    expect(code({ maxEntries: 64, maxTotalBytes: 2 ** 20, maxEntryBytes: 50 })).toBe('TooLarge');
+  });
+  it('round-trips a rescued board exactly', () => {
+    const r = rescueWhiteboardZip(FIXTURES['multi-group-order'](), { idGen: seqIds() });
+    expect(r.board.view).toBeDefined();
+    expect(r.assets.size).toBe(1);
+    const f = readChalk(writeChalk(r, { appVersion: 'x' }));
+    expect(f.board).toEqual(r.board);
+    expect(f.assets).toEqual(r.assets);
+    expect(f.extensions).toEqual(r.extensions);
   });
 });
 
