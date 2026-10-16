@@ -50,7 +50,27 @@ function transformBbox(m: Affine, b: Bbox): Bbox {
   return pointsBbox(pts)!;
 }
 
+/**
+ * Bounds cache keyed by object identity. Board objects are treated as immutable: every edit
+ * replaces the object (see translateObject and the editor's commands), so entries never go stale.
+ * Cached boxes are frozen so a caller cannot corrupt them.
+ */
+const boundsCache = new WeakMap<object, Bbox | null>();
+
+function cached(o: object, compute: () => Bbox | null): Bbox | null {
+  const hit = boundsCache.get(o);
+  if (hit !== undefined) return hit;
+  const b = compute();
+  if (b) Object.freeze(b);
+  boundsCache.set(o, b);
+  return b;
+}
+
 export function strokeBounds(s: Stroke): Bbox | null {
+  return cached(s, () => computeStrokeBounds(s));
+}
+
+function computeStrokeBounds(s: Stroke): Bbox | null {
   if (s.sourceOutline && !s.editedAt) {
     try {
       const b = polysBbox(pathPolygons(parsePath(s.sourceOutline)));
@@ -67,11 +87,12 @@ export function objectBounds(o: BoardObject): Bbox | null {
   switch (o.kind) {
     case 'stroke':
       return strokeBounds(o);
-    case 'group': {
-      let b: Bbox | null = null;
-      for (const c of o.children) b = unionBbox(b, strokeBounds(c));
-      return b ? transformBbox(o.transform, b) : null;
-    }
+    case 'group':
+      return cached(o, () => {
+        let b: Bbox | null = null;
+        for (const c of o.children) b = unionBbox(b, strokeBounds(c));
+        return b ? transformBbox(o.transform, b) : null;
+      });
     case 'image':
       return { x: o.x, y: o.y, w: o.w, h: o.h };
     case 'unsupported':

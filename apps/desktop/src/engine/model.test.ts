@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Group, ImageObj, Stroke } from '@chalksmith/core';
+import { objectBounds, type Group, type ImageObj, type Stroke } from '@chalksmith/core';
 import { Camera, MAX_ZOOM, MIN_ZOOM } from './camera';
 import { EditorDoc } from './document';
 import { AddObject, MoveItems, RemoveItems } from './commands';
@@ -123,6 +123,29 @@ describe('commands and history', () => {
     const moved = doc.board.objects[2] as Group;
     expect(moved.transform).toEqual([1, 0, 0, 1, 3, 4]);
     expect(moved.children).toBe(kids);
+  });
+  it('replaces a group immutably when a child is erased; bounds and index follow, undo restores the original object', () => {
+    const { doc, h } = setup();
+    const kids = [stroke('c1', 100), stroke('c2', 200)];
+    const g: Group = { kind: 'group', id: 'g', transform: [1, 0, 0, 1, 0, 0], children: kids };
+    doc.board.objects.splice(1, 0, g);
+    doc.reindex();
+    expect(objectBounds(g)).toEqual({ x: 100, y: 0, w: 110, h: 0 });
+    h.execute(new RemoveItems([{ groupId: 'g', id: 'c2' }]));
+    const after = doc.board.objects[1] as Group;
+    expect(after).not.toBe(g);
+    expect(g.children).toBe(kids);
+    expect(kids.map((c) => c.id)).toEqual(['c1', 'c2']);
+    expect(after.children.map((c) => c.id)).toEqual(['c1']);
+    expect(objectBounds(after)).toEqual({ x: 100, y: 0, w: 10, h: 0 });
+    expect(doc.index.query({ x: 205, y: 0, w: 1, h: 1 }).has('g')).toBe(false);
+    h.undo();
+    expect(doc.board.objects[1]).toBe(g);
+    expect(doc.index.query({ x: 205, y: 0, w: 1, h: 1 }).has('g')).toBe(true);
+    h.redo();
+    expect((doc.board.objects[1] as Group).children.map((c) => c.id)).toEqual(['c1']);
+    h.undo();
+    expect(doc.board.objects[1]).toBe(g);
   });
   it('removes two children of one group (group vanishes), undo/redo/undo', () => {
     const { doc, h } = setup();

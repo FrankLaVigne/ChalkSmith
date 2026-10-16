@@ -85,6 +85,17 @@ describe('bounds and affine', () => {
     expect(objectBounds(g)).toEqual({ x: 98, y: 48, w: 14, h: 4 });
     expect(boardBounds([])).toBeNull();
   });
+  it('caches bounds by object identity; a replaced group with fewer children gets fresh bounds', () => {
+    const far: Stroke = { ...stroke, id: 'far', points: [100, 0, 110, 0] };
+    const g: Group = { kind: 'group', id: 'g', transform: [1, 0, 0, 1, 0, 0], children: [stroke, far] };
+    const b1 = objectBounds(g);
+    expect(b1).toEqual({ x: -2, y: -2, w: 114, h: 4 });
+    expect(objectBounds(g)).toBe(b1);
+    expect(Object.isFrozen(b1)).toBe(true);
+    const removed: Group = { ...g, children: [stroke] };
+    expect(objectBounds(removed)).toEqual({ x: -2, y: -2, w: 14, h: 4 });
+    expect(objectBounds(g)).toBe(b1);
+  });
 });
 
 // A straight pen stroke along y=0: points (0,0) (10,0) (20,0), half-width 2,

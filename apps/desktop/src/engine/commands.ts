@@ -1,4 +1,4 @@
-import { translateObject, type BoardObject, type ItemRef, type Stroke } from '@chalksmith/core';
+import { translateObject, type BoardObject, type Group, type ItemRef } from '@chalksmith/core';
 import type { EditorDoc } from './document';
 
 export interface Command {
@@ -15,9 +15,15 @@ export class AddObject implements Command {
   }
 }
 
-type Removal = { groupId: string | null; index: number; obj: BoardObject };
+type Removal =
+  | { kind: 'remove'; index: number; obj: BoardObject }
+  | { kind: 'replace'; id: string; before: Group };
 
-/** Removes top-level objects or group children. A group left empty is removed too. */
+/**
+ * Removes top-level objects or group children. A group left empty is removed too.
+ * Groups are never mutated: a group losing a child is replaced by a new group object
+ * (objects are immutable, so cached bounds stay valid), and undo restores the original.
+ */
 export class RemoveItems implements Command {
   private log: Removal[] = [];
   constructor(private readonly refs: ItemRef[]) {}
@@ -32,17 +38,19 @@ export class RemoveItems implements Command {
         if (!g || g.kind !== 'group') continue;
         const ci = g.children.findIndex((c) => c.id === ref.id);
         if (ci < 0) continue;
-        const [child] = g.children.splice(ci, 1);
-        this.log.push({ groupId: g.id, index: ci, obj: child });
-        if (g.children.length === 0) {
+        const children = g.children.filter((_, k) => k !== ci);
+        if (children.length === 0) {
           objs.splice(gi, 1);
-          this.log.push({ groupId: null, index: gi, obj: g });
+          this.log.push({ kind: 'remove', index: gi, obj: g });
+        } else {
+          objs[gi] = { ...g, children };
+          this.log.push({ kind: 'replace', id: g.id, before: g });
         }
       } else {
         const i = objs.findIndex((o) => o.id === ref.id);
         if (i < 0) continue;
         const [o] = objs.splice(i, 1);
-        this.log.push({ groupId: null, index: i, obj: o });
+        this.log.push({ kind: 'remove', index: i, obj: o });
       }
     }
   }
@@ -50,9 +58,9 @@ export class RemoveItems implements Command {
   revert(doc: EditorDoc): void {
     const objs = doc.board.objects;
     for (const e of [...this.log].reverse()) {
-      if (e.groupId) {
-        const g = objs.find((o) => o.id === e.groupId);
-        if (g && g.kind === 'group') g.children.splice(e.index, 0, e.obj as Stroke);
+      if (e.kind === 'replace') {
+        const i = objs.findIndex((o) => o.id === e.id);
+        if (i >= 0) objs[i] = e.before;
       } else {
         objs.splice(e.index, 0, e.obj);
       }
