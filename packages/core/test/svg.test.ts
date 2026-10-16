@@ -15,6 +15,13 @@ describe('boardToSvg', () => {
     expect(svg).toContain('&lt;Note &quot;x&quot; &amp; y&gt;');
     expect(svg).not.toContain('<Note');
   });
+  it('strips characters invalid in XML 1.0', () => {
+    const b: Board = { ...empty, objects: [{ kind: 'unsupported', id: 'u', sourceType: 'A\u0001B\uD800C', bbox: { x: 0, y: 0, w: 10, h: 10 } }] };
+    const svg = boardToSvg(b, new Map());
+    expect(svg).toContain('ABC');
+    expect(svg).not.toContain('\u0001');
+    expect(svg).not.toContain('\uD800');
+  });
   it('embeds images and draws missing assets as placeholders', () => {
     const asset = 'assets/' + 'b'.repeat(64) + '.png';
     const b: Board = { ...empty, objects: [{ kind: 'image', id: 'i', asset, x: 0, y: 0, w: 4, h: 2, intrinsic: { w: 4, h: 2 } }] };

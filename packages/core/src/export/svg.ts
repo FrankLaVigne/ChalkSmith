@@ -8,8 +8,13 @@ import { mimeForAsset } from '../util/image';
 import { round4 } from '../util/round';
 
 const n = (v: number) => String(round4(v));
+const stripInvalidXml = (s: string) =>
+  s
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1');
 const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  stripInvalidXml(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function textureDef(name: TextureName): string {
   const T = TEXTURE_TILE;
