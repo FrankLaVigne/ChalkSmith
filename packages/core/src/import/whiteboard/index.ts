@@ -6,7 +6,9 @@ import { round4 } from '../../util/round';
 import { buildReport, newCtx, skip, type RescueReport } from './context';
 import { parseStyle, parseTranslateScale } from './css';
 import { attr, childElements, findFirst, hasClass, parseHtml, tag } from './dom';
+import { importImage } from './image';
 import { importInkGroup } from './ink';
+import { importUnsupported } from './unsupported';
 import { DEFAULT_LIMITS, readExportZip, type ExportLimits } from './unzip';
 
 export type { RescueReport } from './context';
@@ -43,8 +45,11 @@ export function rescueWhiteboardZip(bytes: Uint8Array, opts: RescueOptions = {})
       if (type === 'InkGroup') {
         const g = importInkGroup(anchor, ctx);
         if (g) objects.push(g);
+      } else if (type === 'AzureImage' || type === 'Image') {
+        const im = importImage(anchor, ctx, assets);
+        if (im) objects.push(im);
       } else {
-        skip(ctx, sourceId, `${type}: not imported yet`);
+        objects.push(importUnsupported(anchor, type, ctx));
       }
     } catch (err) {
       skip(ctx, sourceId, `object could not be read: ${(err as Error).message}`);
