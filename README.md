@@ -4,7 +4,7 @@ Chalksmith is an original offline-first whiteboard project for sketching, thinki
 
 ## Why I made this
 
-Chalksmith started because I loved using Microsoft Whiteboard and wanted that kind of drawing experience to remain available on my terms. The retirement of its standalone app and the tedious work of manually preserving my boards made me think harder about keeping control of my work. I wanted a cross-platform whiteboard that works offline, keeps files under my control, and makes moving editable drawings between tools a first-class goal.
+Chalksmith began because Microsoft retired a whiteboard app I loved. I wanted to put that experience back in users' hands through an open-source alternative they could keep, improve, and control. The tedious work of manually preserving my boards reinforced the goal: an offline, cross-platform whiteboard with locally owned files and portable, editable drawings.
 
 ## Project status
 
