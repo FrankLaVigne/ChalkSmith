@@ -8,3 +8,6 @@ export * from './util/image';
 export * from './geometry/path';
 export * from './geometry/bounds';
 export * from './geometry/width';
+export * from './geometry/outline';
+export * from './geometry/translate';
+export * from './textures';
