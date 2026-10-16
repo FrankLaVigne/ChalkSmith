@@ -17,7 +17,7 @@ export interface ImportCtx {
 }
 
 export function newCtx(idGen: IdGen): ImportCtx {
-  return { idGen, skipped: [], warnings: new Set(), substitutions: new Map(), unsupported: {}, transformed: 0 };
+  return { idGen, skipped: [], warnings: new Set(), substitutions: new Map(), unsupported: Object.create(null) as Record<string, number>, transformed: 0 };
 }
 
 export function skip(ctx: ImportCtx, sourceId: string | null, reason: string): void {

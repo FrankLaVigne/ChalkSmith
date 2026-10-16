@@ -3,6 +3,7 @@ import { ChalkError } from '../../errors';
 import { WHITE, parseCssColor } from '../../model/color';
 import { randomId, type Board, type BoardObject, type IdGen } from '../../model/types';
 import { round4 } from '../../util/round';
+import { objectProblem } from './check';
 import { buildReport, newCtx, skip, type RescueReport } from './context';
 import { parseStyle, parseTranslateScale } from './css';
 import { attr, childElements, findFirst, hasClass, parseHtml, tag } from './dom';
@@ -42,15 +43,19 @@ export function rescueWhiteboardZip(bytes: Uint8Array, opts: RescueOptions = {})
     const type = attr(anchor, 'data-whiteboard-type') ?? 'unknown';
     const sourceId = attr(anchor, 'data-apikey');
     try {
-      if (type === 'InkGroup') {
-        const g = importInkGroup(anchor, ctx);
-        if (g) objects.push(g);
-      } else if (type === 'AzureImage' || type === 'Image') {
-        const im = importImage(anchor, ctx, assets);
-        if (im) objects.push(im);
-      } else {
-        objects.push(importUnsupported(anchor, type, ctx));
+      let o: BoardObject | null;
+      if (type === 'InkGroup') o = importInkGroup(anchor, ctx);
+      else if (type === 'AzureImage' || type === 'Image') o = importImage(anchor, ctx, assets);
+      else o = importUnsupported(anchor, type, ctx);
+      if (!o) continue;
+      // Per-object validation: anything writeChalk would reject is skipped and reported here.
+      const problem = objectProblem(o);
+      if (problem) {
+        if (o.kind === 'unsupported' && --ctx.unsupported[type] === 0) delete ctx.unsupported[type];
+        skip(ctx, sourceId, `object has invalid data (${problem})`);
+        continue;
       }
+      objects.push(o);
     } catch (err) {
       skip(ctx, sourceId, `object could not be read: ${(err as Error).message}`);
     }
@@ -60,7 +65,11 @@ export function rescueWhiteboardZip(bytes: Uint8Array, opts: RescueOptions = {})
   const color = (bgRect && parseCssColor(attr(bgRect, 'fill') ?? '')) || { ...WHITE };
   const tc = findFirst(doc, (e) => hasClass(e, 'transformComponent'));
   const ts = tc ? parseTranslateScale(parseStyle(attr(tc, 'style')).transform) : null;
-  const view = ts && ts.scale > 0 ? { x: round4(-ts.tx / ts.scale), y: round4(-ts.ty / ts.scale), zoom: round4(ts.scale) } : undefined;
+  let view = ts && ts.scale > 0 ? { x: round4(-ts.tx / ts.scale), y: round4(-ts.ty / ts.scale), zoom: round4(ts.scale) } : undefined;
+  if (view && !(Number.isFinite(view.x) && Number.isFinite(view.y) && Number.isFinite(view.zoom) && view.zoom > 0)) {
+    view = undefined;
+    ctx.warnings.add('The saved view position is out of range and was reset.');
+  }
 
   const extensions = new Map<string, Uint8Array>();
   if (entries.comments) {
@@ -73,6 +82,10 @@ export function rescueWhiteboardZip(bytes: Uint8Array, opts: RescueOptions = {})
   } else {
     ctx.warnings.add('The export has no comments file.');
   }
+
+  // Keep only the bytes of images that made it onto the board.
+  const used = new Set(objects.flatMap((o) => (o.kind === 'image' ? [o.asset] : [])));
+  for (const k of [...assets.keys()]) if (!used.has(k)) assets.delete(k);
 
   const board: Board = { id: boardId, background: { color }, ...(view ? { view } : {}), objects };
   return { board, assets, extensions, report: buildReport(ctx, objects) };

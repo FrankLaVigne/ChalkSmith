@@ -1,5 +1,6 @@
 import type { Bbox, Unsupported } from '../../model/types';
 import { round4 } from '../../util/round';
+import { finiteBox } from './check';
 import type { ImportCtx } from './context';
 import { parseMatrix, parseStyle, px } from './css';
 import { attr, findFirst, hasClass, type Element } from './dom';
@@ -26,6 +27,8 @@ export function importUnsupported(anchor: Element, type: string, ctx: ImportCtx)
       bbox = { x: round4(L + e), y: round4(T + f), w: 0, h: 0 };
     }
   }
+  // A box that could never be saved (negative size, overflow) is dropped: position unknown.
+  if (bbox && !finiteBox(bbox)) bbox = null;
   ctx.unsupported[type] = (ctx.unsupported[type] ?? 0) + 1;
   return {
     kind: 'unsupported',

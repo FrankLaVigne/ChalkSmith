@@ -1,7 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { ChalkError } from '../errors';
 import type { Board, Manifest } from '../model/types';
-import { round4 } from '../util/round';
+import { chalkJson } from './json';
 import { validateBoard } from './validate';
 
 export const CHALK_VERSION = 0;
@@ -22,8 +22,7 @@ function safeEntry(path: string, prefix: string): boolean {
   return path.startsWith(prefix) && !path.includes('..') && !path.includes('\\') && !path.startsWith('/') && path.length > prefix.length;
 }
 
-const json = (v: unknown) =>
-  strToU8(JSON.stringify(v, (_k, x) => (typeof x === 'number' ? round4(x) : x), 2));
+const json = (v: unknown) => strToU8(chalkJson(v));
 
 export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: Date }): Uint8Array {
   const boardJson = json(c.board);

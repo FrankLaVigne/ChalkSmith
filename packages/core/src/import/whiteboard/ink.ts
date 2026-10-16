@@ -5,6 +5,7 @@ import { highlighterWidth, penWidth, perPointWidths } from '../../geometry/width
 import { round4 } from '../../util/round';
 import { isIdentityLinear, parseMatrix, parsePatternTransform, parseStyle, px } from './css';
 import { attr, findAll, findFirst, hasClass, tag, type Element } from './dom';
+import { objectProblem } from './check';
 import { skip, type ImportCtx } from './context';
 
 const TEXTURES: Record<string, TextureName> = { '#galaxy-pen': 'galaxy', '#rainbow-pen': 'rainbow' };
@@ -62,6 +63,8 @@ export function importStroke(g: Element, tool: 'pen' | 'highlighter', ctx: Impor
     tool, color, width, points, brush, sourceOutline: formatPath(segs),
   };
   if (tool === 'pen') s.widths = perPointWidths(points, segs, width);
+  const problem = objectProblem(s);
+  if (problem) throw new Error(`invalid data (${problem})`);
   return s;
 }
 

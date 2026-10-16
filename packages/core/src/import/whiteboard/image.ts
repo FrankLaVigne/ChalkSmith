@@ -25,7 +25,8 @@ export function importImage(anchor: Element, ctx: ImportCtx, assets: Map<string,
   const is = parseStyle(attr(img, 'style'));
   const w = px(bs.width) ?? px(is['max-width']) ?? intrinsic?.w ?? null;
   const h = px(bs.height) ?? px(is['max-height']) ?? intrinsic?.h ?? null;
-  if (!w || !h) { skip(ctx, sourceId, 'image size is unknown'); return null; }
+  if (w === null || h === null) { skip(ctx, sourceId, 'image size is unknown'); return null; }
+  if (!(w > 0 && h > 0 && Number.isFinite(w) && Number.isFinite(h))) { skip(ctx, sourceId, 'image size is invalid'); return null; }
 
   const st = parseStyle(attr(anchor, 'style'));
   const L = px(st.left) ?? 0;
