@@ -5,3 +5,6 @@ export * from './util/round';
 export * from './util/sha256';
 export * from './util/base64';
 export * from './util/image';
+export * from './geometry/path';
+export * from './geometry/bounds';
+export * from './geometry/width';
