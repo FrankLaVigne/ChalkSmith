@@ -25,13 +25,20 @@ export async function confirmDiscard(ed: Editor, pf: Platform): Promise<boolean>
   return pf.confirm('Unsaved changes', 'This board has unsaved changes. Discard them?');
 }
 
-export async function openBoard(ed: Editor, pf: Platform): Promise<OpenResult | null> {
+export interface OpenOptions {
+  /** Awaited after the file is read and before the synchronous parse/rescue, so the UI can paint a busy state. */
+  beforeHeavyWork?: (kind: 'chalk' | 'whiteboard-zip') => Promise<void>;
+}
+
+export async function openBoard(ed: Editor, pf: Platform, opts: OpenOptions = {}): Promise<OpenResult | null> {
   if (!(await confirmDiscard(ed, pf))) return null;
   const path = await pf.pickOpen();
   if (!path) return null;
   try {
     const bytes = await pf.readFile(path);
-    if (path.toLowerCase().endsWith('.chalk')) {
+    const isChalk = path.toLowerCase().endsWith('.chalk');
+    await opts.beforeHeavyWork?.(isChalk ? 'chalk' : 'whiteboard-zip');
+    if (isChalk) {
       const f = readChalk(bytes);
       ed.load(new EditorDoc({ board: f.board, assets: f.assets, extensions: f.extensions, createdAt: f.createdAt, source: { kind: 'chalk', path } }));
       return { warnings: f.warnings };

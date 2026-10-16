@@ -18,6 +18,7 @@
   let frame = 0;
   let tick = $state(0);
   let report = $state<Report | null>(null);
+  let busy = $state<string | null>(null);
 
   const editor = new Editor(() => {
     if (frame) return;
@@ -31,8 +32,19 @@
     try { await fn(); } catch (e) { await pf.error('Unexpected error', errorText(e)).catch(() => {}); }
   };
 
+  /** Show the overlay, then wait until it has painted before the caller blocks the thread. */
+  async function showBusy(text: string) {
+    busy = text;
+    await new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  }
+
   async function doOpen() {
-    const r = await openBoard(editor, pf);
+    let r;
+    try {
+      r = await openBoard(editor, pf, { beforeHeavyWork: (kind) => showBusy(kind === 'chalk' ? 'Opening board…' : 'Rescuing board…') });
+    } finally {
+      busy = null;
+    }
     if (!r) return;
     report = null;
     if (r.report) report = r.report;
@@ -125,6 +137,9 @@
   <div class="stage" bind:this={host}>
     <canvas bind:this={canvas}></canvas>
   </div>
+  {#if busy}
+    <div class="busy" role="status" aria-live="polite"><div class="busy-box">{busy}</div></div>
+  {/if}
   {#if report}
     <RescueReport {report} onSave={guard(doSaveFromReport)} onClose={() => (report = null)} />
   {/if}
@@ -134,4 +149,12 @@
   .app { display: flex; flex-direction: column; height: 100%; }
   .stage { position: relative; flex: 1; overflow: hidden; }
   canvas { display: block; }
+  .busy {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.25); z-index: 20; cursor: progress;
+  }
+  .busy-box {
+    background: #fff; color: #222; padding: 16px 24px; border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); font: 14px system-ui, sans-serif;
+  }
 </style>

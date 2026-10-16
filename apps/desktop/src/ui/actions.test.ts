@@ -46,6 +46,20 @@ describe('rescue and save', () => {
     expect(ed.doc.dirty).toBe(true);
     expect(ed.doc.source).toEqual({ kind: 'whiteboard-zip', path: ZIP });
   });
+  it('lets the UI paint a busy overlay after reading and before the synchronous rescue', async () => {
+    const { pf, ed } = setup();
+    const events: string[] = [];
+    const read = pf.readFile.bind(pf);
+    pf.readFile = async (p: string) => { events.push('read'); return read(p); };
+    const loaded = ed.doc;
+    await openBoard(ed, pf, { beforeHeavyWork: async (kind) => { events.push(ed.doc === loaded ? `busy:${kind}` : 'late'); } });
+    expect(events).toEqual(['read', 'busy:whiteboard-zip']);
+    expect(ed.doc).not.toBe(loaded);
+    pf.openPath = null;
+    events.length = 0;
+    await openBoard(ed, pf, { beforeHeavyWork: async () => { events.push('busy'); } });
+    expect(events).toEqual([]);
+  });
   it('Save after rescue acts as Save As with a .chalk default, and never writes the ZIP', async () => {
     const { pf, ed } = setup();
     await openBoard(ed, pf);
