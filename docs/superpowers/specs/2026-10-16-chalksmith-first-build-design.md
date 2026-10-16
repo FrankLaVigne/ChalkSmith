@@ -202,8 +202,11 @@ interface RescueReport {
        pattern translate ÷ 128, scale from the pattern scale;
      - `sourceOutline` = path `d` with every coordinate and arc radius ÷ 128;
      - `width` = 2 × the maximum arc radius ÷ 128 for pens. For highlighters,
-       it is the shorter side of the first rectangular subpath ÷ 128, or 2 ×
-       the maximum centerline-to-outline distance if there is no rectangle;
+       it is the **longer** side of the first subpath ÷ 128, provided that
+       subpath is an axis-aligned rectangle and the outline has more than one
+       subpath. (In real exports the chisel tip is a 1:2 rectangle and the
+       stroke body is as thick as its long side.) If there is no rectangle,
+       it is 2 × the maximum centerline-to-outline distance;
      - `widths` = 2 × the distance from each centerline point to the outline
        polygon (arcs approximated by their endpoints), clamped to
        `[0.1·width, width]`. Omitted for highlighters;

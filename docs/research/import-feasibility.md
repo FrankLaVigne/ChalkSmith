@@ -47,7 +47,9 @@ Pipeline, in order. Everything is local and offline.
    - `color`: parse `rgba()` → RGBA8 + float alpha. Round float32 artefacts
      (0.4000000059604645 → 0.4).
    - `width` (nominal) = 2 × max arc radius in the outline. For highlighters,
-     use the tip rectangle subpath's short side (**[H]**, to validate).
+     use the tip rectangle subpath's **long** side. Confirmed on a real
+     export: tips are 1:2 rectangles, and the body thickness follows the long
+     side.
    - `widths[]` (per point, optional) = 2 × distance from each centerline
      point to the outline polygon. Validated on a real export: for almost every
      pen stroke, max(widths) agrees closely with 2 × max arc radius.
