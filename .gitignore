@@ -1,0 +1,5 @@
+# Reference copy only - never commit
+/original/
+
+# Private evidence derived from real boards - never commit
+/private/
