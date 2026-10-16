@@ -16,3 +16,4 @@ export * from './format/schema';
 export * from './format/validate';
 export * from './format/chalk';
 export * from './import/whiteboard/index';
+export * from './export/svg';

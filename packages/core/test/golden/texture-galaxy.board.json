@@ -1,0 +1,75 @@
+{
+  "id": "id-1",
+  "background": {
+    "color": {
+      "r": 255,
+      "g": 255,
+      "b": 255,
+      "a": 1
+    }
+  },
+  "view": {
+    "x": -100,
+    "y": -40,
+    "zoom": 0.5
+  },
+  "objects": [
+    {
+      "kind": "group",
+      "id": "id-3",
+      "source": {
+        "system": "ms-whiteboard",
+        "id": "gal1"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        10,
+        10
+      ],
+      "children": [
+        {
+          "kind": "stroke",
+          "id": "id-2",
+          "source": {
+            "system": "ms-whiteboard",
+            "id": "gal1s0"
+          },
+          "tool": "pen",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 1
+          },
+          "width": 7,
+          "points": [
+            0,
+            0,
+            10,
+            0,
+            20,
+            0
+          ],
+          "brush": {
+            "kind": "texture",
+            "name": "galaxy",
+            "origin": [
+              0,
+              0
+            ],
+            "scale": 0.5
+          },
+          "sourceOutline": "M0,3.5L10,3.5A3.5,3.5 0 0 0 10,3.5L20,3.5A3.5,3.5 0 0 0 20,3.5L20,-3.5L10,-3.5L0,-3.5",
+          "widths": [
+            0.7,
+            7,
+            0.7
+          ]
+        }
+      ]
+    }
+  ]
+}

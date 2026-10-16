@@ -1,0 +1,147 @@
+{
+  "id": "id-1",
+  "background": {
+    "color": {
+      "r": 255,
+      "g": 255,
+      "b": 255,
+      "a": 1
+    }
+  },
+  "view": {
+    "x": -100,
+    "y": -40,
+    "zoom": 0.5
+  },
+  "objects": [
+    {
+      "kind": "group",
+      "id": "id-3",
+      "source": {
+        "system": "ms-whiteboard",
+        "id": "a"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        100,
+        50
+      ],
+      "children": [
+        {
+          "kind": "stroke",
+          "id": "id-2",
+          "source": {
+            "system": "ms-whiteboard",
+            "id": "as0"
+          },
+          "tool": "pen",
+          "color": {
+            "r": 31,
+            "g": 31,
+            "b": 31,
+            "a": 1
+          },
+          "width": 4,
+          "points": [
+            0,
+            0,
+            10,
+            0,
+            20,
+            0
+          ],
+          "brush": {
+            "kind": "solid"
+          },
+          "sourceOutline": "M0,2L10,2A2,2 0 0 0 10,2L20,2A2,2 0 0 0 20,2L20,-2L10,-2L0,-2",
+          "widths": [
+            0.4,
+            4,
+            0.4
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "image",
+      "id": "id-4",
+      "source": {
+        "system": "ms-whiteboard",
+        "id": "img1"
+      },
+      "asset": "assets/e19646b0b71acc9c55b7b4db9d282561d67ccba612da0fc912fd05d6ce0926d2.png",
+      "x": 280,
+      "y": 190,
+      "w": 40,
+      "h": 20,
+      "intrinsic": {
+        "w": 80,
+        "h": 40
+      }
+    },
+    {
+      "kind": "group",
+      "id": "id-6",
+      "source": {
+        "system": "ms-whiteboard",
+        "id": "b"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        300,
+        300
+      ],
+      "children": [
+        {
+          "kind": "stroke",
+          "id": "id-5",
+          "source": {
+            "system": "ms-whiteboard",
+            "id": "bs0"
+          },
+          "tool": "highlighter",
+          "color": {
+            "r": 253,
+            "g": 132,
+            "b": 45,
+            "a": 0.4
+          },
+          "width": 9.2969,
+          "points": [
+            0,
+            0,
+            10,
+            0,
+            20,
+            0
+          ],
+          "brush": {
+            "kind": "solid"
+          },
+          "sourceOutline": "M-2.3242,-4.6484L2.3242,-4.6484L2.3242,4.6484L-2.3242,4.6484L-2.3242,-4.6484M0,-4.6484L20,-4.6484L20,4.6484L0,4.6484"
+        }
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "id": "id-7",
+      "source": {
+        "system": "ms-whiteboard",
+        "id": "note1"
+      },
+      "sourceType": "StickyNote",
+      "bbox": {
+        "x": 10,
+        "y": 20,
+        "w": 100,
+        "h": 80
+      }
+    }
+  ]
+}
