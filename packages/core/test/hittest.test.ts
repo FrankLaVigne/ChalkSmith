@@ -47,4 +47,14 @@ describe('hitTest', () => {
     const refs = strokesUnderPath(objs, [50, -10, 50, 10, 500, 500, 510, 500], 2);
     expect(refs).toEqual([{ groupId: null, id: 'a' }, { groupId: 'g', id: 'c' }]);
   });
+  it('only tests candidate top-level ids when candidates are given', () => {
+    const path = [50, -10, 50, 10, 500, 500, 510, 500];
+    expect(strokesUnderPath(objs, path, 2, new Set(['g']))).toEqual([{ groupId: 'g', id: 'c' }]);
+    expect(strokesUnderPath(objs, path, 2, new Set(['a', 'b', 'img', 'g']))).toEqual(strokesUnderPath(objs, path, 2));
+    expect(strokesUnderPath(objs, path, 2, new Set())).toEqual([]);
+  });
+  it('rejects strokes whose bounds are far from the whole path, and handles single-sample paths', () => {
+    expect(strokesUnderPath(objs, [2000, 2000, 2100, 2000], 2)).toEqual([]);
+    expect(strokesUnderPath(objs, [0, 50], 2)).toEqual([{ groupId: null, id: 'b' }]);
+  });
 });

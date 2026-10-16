@@ -1,4 +1,4 @@
-import { hitTest, randomId, round4, strokesUnderPath, type IdGen, type RGBA, type Stroke } from '@chalksmith/core';
+import { hitTest, inflate, pointsBbox, randomId, round4, strokesUnderPath, type IdGen, type RGBA, type Stroke } from '@chalksmith/core';
 import type { Camera } from './camera';
 import { AddObject, MoveItems, RemoveItems } from './commands';
 import type { EditorDoc } from './document';
@@ -119,7 +119,9 @@ export class EraserTool implements Tool {
   up(p: ToolPointer, h: ToolHost): void {
     if (!h.live.eraserPath) return;
     this.path.push(p.wx, p.wy);
-    const refs = strokesUnderPath(h.doc.board.objects, this.path, 8 / h.camera.zoom);
+    const tol = 8 / h.camera.zoom;
+    const candidates = h.doc.index.query(inflate(pointsBbox(this.path)!, tol));
+    const refs = strokesUnderPath(h.doc.board.objects, this.path, tol, candidates);
     h.live.eraserPath = null;
     this.path = [];
     if (refs.length) h.history.execute(new RemoveItems(refs));

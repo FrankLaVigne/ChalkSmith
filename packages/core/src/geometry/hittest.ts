@@ -1,5 +1,5 @@
 import type { Bbox, BoardObject, Stroke } from '../model/types';
-import { applyAffine, inflate, intersects, invertAffine, objectBounds, strokeBounds } from './bounds';
+import { applyAffine, inflate, intersects, invertAffine, objectBounds, pointsBbox, strokeBounds } from './bounds';
 
 export function distToPolyline(px: number, py: number, points: number[]): number {
   const n = Math.floor(points.length / 2);
@@ -76,7 +76,7 @@ export class GridIndex {
 }
 
 function strokeHit(s: Stroke, x: number, y: number, tol: number): boolean {
-  const b = strokeBounds(s);
+  const b = strokeBounds(s); // cached per object
   if (!b || !intersects(inflate(b, tol), { x, y, w: 0, h: 0 })) return false;
   return distToPolyline(x, y, s.points) <= Math.max(s.width / 2, tol);
 }
@@ -127,23 +127,40 @@ function densify(path: number[], step: number): number[] {
   return out;
 }
 
-/** Strokes (top-level, or children of groups) touched by an eraser path. */
-export function strokesUnderPath(objects: BoardObject[], path: number[], tol: number): ItemRef[] {
+/**
+ * Strokes (top-level, or children of groups) touched by an eraser path. When `candidates` is
+ * given (e.g. a spatial-index query around the path's bounds), only those top-level ids are tested.
+ */
+export function strokesUnderPath(objects: BoardObject[], path: number[], tol: number, candidates?: Set<string>): ItemRef[] {
   const pts = densify(path, Math.max(tol, 0.5));
   const refs: ItemRef[] = [];
-  const touches = (s: Stroke, xs: number[], t: number) => {
-    for (let i = 0; i + 1 < xs.length; i += 2) if (strokeHit(s, xs[i], xs[i + 1], t)) return true;
+  const pathBox = pointsBbox(pts);
+  if (!pathBox) return refs;
+  const touches = (s: Stroke, xs: number[], box: Bbox, t: number) => {
+    // Bounds are cached per stroke; reject on the whole path's box before any per-sample test.
+    const b = strokeBounds(s);
+    if (!b) return false;
+    const hb = inflate(b, t);
+    if (!intersects(hb, box)) return false;
+    const r = Math.max(s.width / 2, t);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const x = xs[i], y = xs[i + 1];
+      if (x < hb.x || x > hb.x + hb.w || y < hb.y || y > hb.y + hb.h) continue;
+      if (distToPolyline(x, y, s.points) <= r) return true;
+    }
     return false;
   };
   for (const o of objects) {
-    if (o.kind === 'stroke' && touches(o, pts, tol)) refs.push({ groupId: null, id: o.id });
+    if (candidates && !candidates.has(o.id)) continue;
+    if (o.kind === 'stroke' && touches(o, pts, pathBox, tol)) refs.push({ groupId: null, id: o.id });
     if (o.kind === 'group') {
       const inv = invertAffine(o.transform);
       if (!inv) continue;
       const local: number[] = [];
       for (let i = 0; i + 1 < pts.length; i += 2) local.push(...applyAffine(inv, pts[i], pts[i + 1]));
+      const localBox = pointsBbox(local)!;
       const scale = Math.sqrt(Math.abs(o.transform[0] * o.transform[3] - o.transform[1] * o.transform[2])) || 1;
-      for (const c of o.children) if (touches(c, local, tol / scale)) refs.push({ groupId: o.id, id: c.id });
+      for (const c of o.children) if (touches(c, local, localBox, tol / scale)) refs.push({ groupId: o.id, id: c.id });
     }
   }
   return refs;
