@@ -61,11 +61,19 @@ export class RemoveItems implements Command {
 }
 
 export class MoveItems implements Command {
+  private originals = new Map<string, BoardObject>();
   constructor(private readonly ids: string[], private readonly dx: number, private readonly dy: number) {}
-  apply(doc: EditorDoc): void { this.shift(doc, this.dx, this.dy); }
-  revert(doc: EditorDoc): void { this.shift(doc, -this.dx, -this.dy); }
-  private shift(doc: EditorDoc, dx: number, dy: number): void {
+  apply(doc: EditorDoc): void {
     const set = new Set(this.ids);
-    doc.board.objects = doc.board.objects.map((o) => (set.has(o.id) ? translateObject(o, dx, dy) : o));
+    this.originals = new Map();
+    doc.board.objects = doc.board.objects.map((o) => {
+      if (!set.has(o.id)) return o;
+      this.originals.set(o.id, o);
+      return translateObject(o, this.dx, this.dy);
+    });
+  }
+  /** Restores the exact original objects; no inverse arithmetic. */
+  revert(doc: EditorDoc): void {
+    doc.board.objects = doc.board.objects.map((o) => this.originals.get(o.id) ?? o);
   }
 }

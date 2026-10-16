@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Group, Stroke } from '@chalksmith/core';
+import type { Group, ImageObj, Stroke } from '@chalksmith/core';
 import { Camera, MAX_ZOOM, MIN_ZOOM } from './camera';
 import { EditorDoc } from './document';
 import { AddObject, MoveItems, RemoveItems } from './commands';
@@ -92,5 +92,53 @@ describe('commands and history', () => {
     for (const id of ['p', 'q', 'r']) small.execute(new AddObject(stroke(id)));
     expect(small.undo() && small.undo()).toBe(true);
     expect(small.undo()).toBe(false);
+  });
+
+  it('undoes a move exactly for fine-grained coordinates', () => {
+    const { doc, h } = setup();
+    const fine: Stroke = { ...stroke('f'), points: [1.23456, 0.00007, 10.11111, 3], sourceOutline: 'M1.23456,0.00007L10.11111,3' };
+    doc.board.objects.push(fine);
+    const orig = structuredClone(fine);
+    h.execute(new MoveItems(['f'], 0.3, -0.7));
+    h.undo();
+    expect(doc.board.objects[2]).toEqual(orig);
+  });
+  it('does not drift over repeated move/undo/redo cycles', () => {
+    const { doc, h } = setup();
+    const img: ImageObj = { kind: 'image', id: 'i', asset: 'assets/x.png', x: 0.3, y: 0.7, w: 10, h: 10, intrinsic: { w: 10, h: 10 } };
+    doc.board.objects.push(img);
+    h.execute(new MoveItems(['i'], 0.1, 0.2));
+    h.undo();
+    for (let n = 0; n < 50; n++) { h.redo(); h.undo(); }
+    const i = doc.board.objects[2] as ImageObj;
+    expect(i.x).toBe(0.3);
+    expect(i.y).toBe(0.7);
+  });
+  it('moving a group changes only its transform', () => {
+    const { doc, h } = setup();
+    const kids = [stroke('c1')];
+    const g: Group = { kind: 'group', id: 'g', transform: [1, 0, 0, 1, 0, 0], children: kids };
+    doc.board.objects.push(g);
+    h.execute(new MoveItems(['g'], 3, 4));
+    const moved = doc.board.objects[2] as Group;
+    expect(moved.transform).toEqual([1, 0, 0, 1, 3, 4]);
+    expect(moved.children).toBe(kids);
+  });
+  it('removes two children of one group (group vanishes), undo/redo/undo', () => {
+    const { doc, h } = setup();
+    const g: Group = { kind: 'group', id: 'g', transform: [1, 0, 0, 1, 0, 0], children: [stroke('c1'), stroke('c2')] };
+    doc.board.objects.splice(1, 0, g);
+    h.execute(new RemoveItems([{ groupId: 'g', id: 'c1' }, { groupId: 'g', id: 'c2' }]));
+    const ids = () => doc.board.objects.map((o) => o.id);
+    const kidIds = () => (doc.board.objects[1] as Group).children.map((c) => c.id);
+    expect(ids()).toEqual(['a', 'b']);
+    h.undo();
+    expect(ids()).toEqual(['a', 'g', 'b']);
+    expect(kidIds()).toEqual(['c1', 'c2']);
+    h.redo();
+    expect(ids()).toEqual(['a', 'b']);
+    h.undo();
+    expect(ids()).toEqual(['a', 'g', 'b']);
+    expect(kidIds()).toEqual(['c1', 'c2']);
   });
 });
