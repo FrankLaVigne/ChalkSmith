@@ -11,6 +11,8 @@ A `.chalk` file is a ZIP archive:
 
 Readers must reject a `format` other than `"chalk"` and a `version` greater than they support.
 
+ChalkSmith reads and writes files within these limits (uncompressed): at most 10,000 entries, 128 MB per entry and 1 GB in total. It refuses to save a board that exceeds them, so every file it writes can be reopened.
+
 ## Semantics
 
 - Coordinates are CSS pixels; y points down. `view.x`/`view.y` are the world coordinates at the viewport's top-left corner.

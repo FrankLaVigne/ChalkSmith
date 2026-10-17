@@ -100,6 +100,25 @@ describe('.chalk rejection', () => {
     expect(code({ maxEntries: 64, maxTotalBytes: 100, maxEntryBytes: 2 ** 20 })).toBe('TooLarge');
     expect(code({ maxEntries: 64, maxTotalBytes: 2 ** 20, maxEntryBytes: 50 })).toBe('TooLarge');
   });
+  it('reopens a board with more images than an export may hold', () => {
+    const c = contents();
+    const images = Array.from({ length: 100 }, (_, i) => {
+      const a = 'assets/' + i.toString(16).padStart(64, '0') + '.png';
+      c.assets.set(a, new Uint8Array([i]));
+      return { kind: 'image' as const, id: `img${i}`, asset: a, x: i, y: 0, w: 1, h: 1, intrinsic: { w: 1, h: 1 } };
+    });
+    c.board.objects.push(...images);
+    const f = readChalk(writeChalk(c, { appVersion: 'x' }));
+    expect(f.assets.size).toBe(101);
+    expect(f.warnings).toEqual([]);
+  });
+  it('refuses to write a file it could not read back', () => {
+    const limits = { maxEntries: 3, maxTotalBytes: 2 ** 20, maxEntryBytes: 2 ** 20 };
+    expect(code(() => writeChalk(contents(), { appVersion: 'x', limits }))).toBe('TooLarge');
+    expect(code(() => writeChalk(contents(), { appVersion: 'x', limits: { ...limits, maxEntries: 64, maxEntryBytes: 2 } }))).toBe('TooLarge');
+    expect(code(() => writeChalk(contents(), { appVersion: 'x', limits: { ...limits, maxEntries: 64, maxTotalBytes: 100 } }))).toBe('TooLarge');
+    expect(code(() => writeChalk(contents(), { appVersion: 'x', limits: { ...limits, maxEntries: 64 } }))).toBe('none');
+  });
   it('round-trips a rescued board exactly', () => {
     const r = rescueWhiteboardZip(FIXTURES['multi-group-order'](), { idGen: seqIds() });
     expect(r.board.view).toBeDefined();

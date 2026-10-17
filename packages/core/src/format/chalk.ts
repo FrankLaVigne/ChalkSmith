@@ -1,11 +1,20 @@
 import { strFromU8, strToU8, zipSync, type Zippable } from 'fflate';
 import { ChalkError } from '../errors';
 import type { Board, Manifest } from '../model/types';
-import { DEFAULT_LIMITS, unzipLimited, type ExportLimits } from '../util/unzip';
+import { unzipLimited, type ExportLimits } from '../util/unzip';
 import { chalkJson } from './json';
 import { validateBoard } from './validate';
 
 export const CHALK_VERSION = 0;
+
+/**
+ * Limits for .chalk files, separate from (and larger than) the Whiteboard export limits so that
+ * any rescued board, plus later edits, can be saved and reopened. The writer enforces the same
+ * limits, so a saved file can always be read back.
+ */
+export const CHALK_LIMITS: ExportLimits = { maxEntries: 10_000, maxTotalBytes: 1024 * 2 ** 20, maxEntryBytes: 128 * 2 ** 20 };
+
+const mb = (n: number) => Math.round(n / 2 ** 20);
 
 export interface ChalkContents {
   board: Board;
@@ -25,7 +34,21 @@ function safeEntry(path: string, prefix: string): boolean {
 
 const json = (v: unknown) => strToU8(chalkJson(v));
 
-export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: Date }): Uint8Array {
+function checkWriteLimits(files: Zippable, limits: ExportLimits): void {
+  const entries = Object.entries(files);
+  const tooLarge = (msg: string) => new ChalkError('TooLarge', `This board is too large to save: ${msg}`);
+  if (entries.length > limits.maxEntries) throw tooLarge(`it has more than ${limits.maxEntries} files.`);
+  let total = 0;
+  for (const [name, v] of entries) {
+    // Entries are either bytes or [bytes, options]; never nested directories here.
+    const size = ((Array.isArray(v) ? v[0] : v) as Uint8Array).length;
+    if (size > limits.maxEntryBytes) throw tooLarge(`"${name}" is larger than ${mb(limits.maxEntryBytes)} MB.`);
+    total += size;
+  }
+  if (total > limits.maxTotalBytes) throw tooLarge(`it is larger than ${mb(limits.maxTotalBytes)} MB.`);
+}
+
+export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: Date; limits?: ExportLimits }): Uint8Array {
   const boardJson = json(c.board);
   validateBoard(JSON.parse(strFromU8(boardJson)));
   const now = (opts.now ?? new Date()).toISOString();
@@ -45,6 +68,7 @@ export function writeChalk(c: ChalkContents, opts: { appVersion: string; now?: D
     if (!safeEntry(p, 'extensions/')) throw new ChalkError('BadChalk', `Refusing to write unsafe extension path "${p}".`);
     files[p] = b;
   }
+  checkWriteLimits(files, opts.limits ?? CHALK_LIMITS);
   return zipSync(files, { level: 6 });
 }
 
@@ -57,7 +81,7 @@ function parseJson(bytes: Uint8Array, name: string): unknown {
 }
 
 export function readChalk(bytes: Uint8Array, opts: { limits?: ExportLimits } = {}): ChalkFile {
-  const entries = unzipLimited(bytes, opts.limits ?? DEFAULT_LIMITS, 'This .chalk file',
+  const entries = unzipLimited(bytes, opts.limits ?? CHALK_LIMITS, 'This .chalk file',
     () => new ChalkError('BadChalk', 'This file is not a valid .chalk file (it is not a ZIP archive).'));
   const m = entries['manifest.json'];
   const b = entries['board.json'];
