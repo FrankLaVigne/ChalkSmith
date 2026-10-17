@@ -1,0 +1,91 @@
+name: Linux installers
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, feat/first-build]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-installers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build and verify Linux x86_64 packages
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Tauri and package verification dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf build-essential libssl-dev file xvfb xauth
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Build Debian installer and AppImage
+        run: npm run tauri -w @chalksmith/desktop -- build --bundles deb,appimage
+      - name: Verify packages and create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(apps/desktop/src-tauri/target/release/bundle/deb/*.deb)
+          images=(apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage)
+          test "${#debs[@]}" -eq 1
+          test "${#images[@]}" -eq 1
+          test "$(dpkg-deb --field "${debs[0]}" Architecture)" = amd64
+          dpkg-deb --info "${debs[0]}"
+          dpkg-deb --contents "${debs[0]}"
+          dpkg-deb --extract "${debs[0]}" "$RUNNER_TEMP/chalksmith-deb"
+          test -x "$RUNNER_TEMP/chalksmith-deb/usr/bin/chalksmith"
+          test -n "$(find "$RUNNER_TEMP/chalksmith-deb/usr/share/applications" -name '*.desktop' -print -quit)"
+          file "${images[0]}"
+          chmod +x "${images[0]}"
+          image_path="$(realpath "${images[0]}")"
+          mkdir -p "$RUNNER_TEMP/chalksmith-appimage"
+          (cd "$RUNNER_TEMP/chalksmith-appimage" && "$image_path" --appimage-extract >/dev/null)
+          test -x "$RUNNER_TEMP/chalksmith-appimage/squashfs-root/AppRun"
+          mkdir -p linux-installers
+          cp "${debs[0]}" "${images[0]}" linux-installers/
+          (cd linux-installers && sha256sum *.deb *.AppImage > SHA256SUMS)
+      - name: Install Debian package and smoke-test startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y ./linux-installers/*.deb
+          set +e
+          timeout 15s xvfb-run -a chalksmith >linux-installers/startup.log 2>&1
+          status=$?
+          set -e
+          cat linux-installers/startup.log
+          # A GUI that stays running until timeout passed this startup smoke test.
+          # Interactive open/save/draw checks still require a Linux desktop.
+          test "$status" -eq 124
+      - name: Upload Linux installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChalkSmith-linux-x86_64-${{ github.sha }}
+          path: linux-installers/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
